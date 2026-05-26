@@ -125,7 +125,7 @@ async function procesarMensaje(from, texto, tipo, message) {
 }
 
 async function enviarMensaje(to, texto) {
-  const url = `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`;
+  const url = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
   console.log(`Enviando a ${to} via ${url}`);
   const response = await axios.post(
     url,
