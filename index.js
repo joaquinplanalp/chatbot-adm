@@ -125,22 +125,18 @@ async function procesarMensaje(from, texto, tipo, message) {
 }
 
 async function enviarMensaje(to, texto) {
-  const url = `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`;
-  console.log(`Enviando a ${to} via ${url}`);
+  let toNormalizado = to;
+  if (to.startsWith('549') && to.length === 13) {
+    const area = to.slice(3, 6);
+    const numero = to.slice(6);
+    toNormalizado = '54' + area + '15' + numero;
+  }
+  const url = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
+  console.log(`Enviando a ${toNormalizado} via ${url}`);
   const response = await axios.post(
     url,
-    {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body: texto }
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    }
+    { messaging_product: 'whatsapp', to: toNormalizado, type: 'text', text: { body: texto } },
+    { headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' } }
   );
   console.log('Respuesta Meta:', JSON.stringify(response.data));
 }
