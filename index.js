@@ -1,5 +1,7 @@
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 app.use(express.json());
 
@@ -7,7 +9,46 @@ const TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-// Webhook verification
+// Load consorcios data
+const CONSORCIOS = JSON.parse(fs.readFileSync(path.join(__dirname, 'consorcios.json'), 'utf8'));
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizar(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[°º]/g, '')
+    .trim();
+}
+
+function buscarConsorcio(texto) {
+  const t = normalizar(texto);
+  return CONSORCIOS.find(c =>
+    normalizar(c.nombre).includes(t) ||
+    t.includes(normalizar(c.nombre)) ||
+    normalizar(c.direccion).includes(t) ||
+    t.includes(normalizar(c.direccion))
+  );
+}
+
+function validarUnidad(consorcio, unidad, torre = null) {
+  const u = normalizar(unidad);
+  if (consorcio.tieneTorres && torre) {
+    const unidades = consorcio.torres[torre] || [];
+    return unidades.some(x => normalizar(x) === u);
+  }
+  // Search all unidades (flat list)
+  const todasUnidades = consorcio.unidades || [];
+  return todasUnidades.some(x => normalizar(x) === u);
+}
+
+function listarConsorcios() {
+  return CONSORCIOS.map((c, i) => `${i + 1}. ${c.nombre} (${c.direccion})`).join('\n');
+}
+
+// ── Webhook verification ──────────────────────────────────────────────────────
+
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -20,7 +61,8 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// Receive messages
+// ── Receive messages ──────────────────────────────────────────────────────────
+
 app.post('/webhook', async (req, res) => {
   try {
     const body = req.body;
@@ -45,8 +87,6 @@ app.post('/webhook', async (req, res) => {
     else if (msgType === 'document') userText = '[documento recibido]';
 
     console.log(`Mensaje de ${from}: ${userText}`);
-    console.log(`Usando PHONE_ID: ${PHONE_ID}`);
-    console.log(`Token primeros 20 chars: ${TOKEN ? TOKEN.substring(0,20) : 'NO TOKEN'}`);
 
     const reply = await procesarMensaje(from, userText, msgType, message);
     if (reply) await enviarMensaje(from, reply);
@@ -58,12 +98,17 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+// ── Sessions ──────────────────────────────────────────────────────────────────
+
 const sesiones = {};
+
+// ── Main message processor ────────────────────────────────────────────────────
 
 async function procesarMensaje(from, texto, tipo, message) {
   if (!sesiones[from]) sesiones[from] = { estado: 'inicio', datos: {} };
   const sesion = sesiones[from];
 
+  // Handle media attachments during active claim
   if (['image', 'audio', 'video', 'document'].includes(tipo)) {
     if (sesion.estado === 'esperando_media' || sesion.estado === 'reclamo_activo') {
       sesion.datos.media = sesion.datos.media || [];
@@ -73,26 +118,81 @@ async function procesarMensaje(from, texto, tipo, message) {
     }
   }
 
-  const texto_lower = texto.toLowerCase().trim();
+  const t = texto.toLowerCase().trim();
 
   switch (sesion.estado) {
-    case 'inicio':
-      sesion.estado = 'esperando_confirmacion';
-      return `¡Hola! 👋 Soy el asistente de *Manuel Jose Lorenzo & Asociados*.\n\n¿Podés confirmarme tu nombre, unidad y consorcio?\n\nEjemplo: _Juan Pérez, 3°B, Edificio Alsina_`;
 
-    case 'esperando_confirmacion':
-      sesion.datos.identificacion = texto;
+    case 'inicio':
+      sesion.estado = 'esperando_consorcio';
+      return (
+        `¡Hola! 👋 Soy el asistente de *Manuel Jose Lorenzo & Asociados*.\n\n` +
+        `¿A qué consorcio pertenecés? Podés escribir el nombre o la dirección.\n\n` +
+        listarConsorcios()
+      );
+
+    case 'esperando_consorcio': {
+      const consorcio = buscarConsorcio(texto);
+      if (!consorcio) {
+        return (
+          `No encontré ese consorcio. Por favor escribí el nombre o dirección de la lista:\n\n` +
+          listarConsorcios()
+        );
+      }
+      sesion.datos.consorcio = consorcio;
+
+      if (consorcio.tieneTorres) {
+        sesion.estado = 'esperando_torre';
+        const torres = Object.keys(consorcio.torres).filter(k => k !== 'cocheras');
+        return `Consorcio: *${consorcio.nombre}*\n\n¿A qué torre pertenecés?\n${torres.map(t => `Torre ${t}`).join('\n')}`;
+      }
+
+      sesion.estado = 'esperando_unidad';
+      return `Consorcio: *${consorcio.nombre}* ✅\n\n¿Cuál es tu unidad? (ej: 3°A, LOC°1, COCH°5)`;
+    }
+
+    case 'esperando_torre': {
+      const consorcio = sesion.datos.consorcio;
+      const torres = Object.keys(consorcio.torres).filter(k => k !== 'cocheras');
+      const torreInput = texto.replace(/torre/i, '').trim();
+      const torreValida = torres.find(t => normalizar(t) === normalizar(torreInput));
+      if (!torreValida) {
+        return `Torre no válida. Las torres disponibles son:\n${torres.map(t => `Torre ${t}`).join('\n')}`;
+      }
+      sesion.datos.torre = torreValida;
+      sesion.estado = 'esperando_unidad';
+      return `Torre *${torreValida}* ✅\n\n¿Cuál es tu unidad? (ej: 3°A, PB°B)`;
+    }
+
+    case 'esperando_unidad': {
+      const consorcio = sesion.datos.consorcio;
+      const torre = sesion.datos.torre || null;
+      const esValida = validarUnidad(consorcio, texto, torre);
+      if (!esValida) {
+        return `No encontré la unidad *${texto}* en ${consorcio.nombre}${torre ? ` Torre ${torre}` : ''}. ¿Podés verificar y escribirla de nuevo?`;
+      }
+      sesion.datos.unidad = texto.trim();
+      sesion.estado = 'esperando_nombre';
+      return `Unidad *${texto.trim()}* ✅\n\n¿Cuál es tu nombre?`;
+    }
+
+    case 'esperando_nombre':
+      sesion.datos.nombre = texto;
       sesion.estado = 'menu';
-      return `Gracias. ¿En qué te puedo ayudar?\n\n1️⃣ Hacer un reclamo\n2️⃣ Consultar estado de un reclamo\n3️⃣ Hablar con una persona`;
+      return (
+        `Gracias, *${texto}*. ¿En qué te puedo ayudar?\n\n` +
+        `1️⃣ Hacer un reclamo\n2️⃣ Consultar estado de un reclamo\n3️⃣ Hablar con una persona`
+      );
 
     case 'menu':
-      if (texto_lower === '1' || (texto_lower.includes('reclamo') && !texto_lower.includes('estado'))) {
+      if (t === '1' || (t.includes('reclamo') && !t.includes('estado'))) {
         sesion.estado = 'esperando_reclamo';
         return '📝 Describí el problema con el mayor detalle posible. También podés enviar *fotos, videos o audios*.';
-      } else if (texto_lower === '2' || texto_lower.includes('estado')) {
+      } else if (t === '2' || t.includes('estado')) {
         return '🔍 La consulta de estado estará disponible próximamente.\n\n1️⃣ Hacer un reclamo\n3️⃣ Hablar con una persona';
-      } else if (texto_lower === '3' || texto_lower.includes('persona')) {
+      } else if (t === '3' || t.includes('persona')) {
         sesion.estado = 'derivado';
+        const { nombre, consorcio, unidad, torre } = sesion.datos;
+        console.log(`DERIVAR A OPERADOR: ${nombre} | ${consorcio.nombre} | ${torre ? 'Torre ' + torre + ' ' : ''}${unidad}`);
         return '👤 En breve un operador se va a comunicar con vos. Horario: lunes a viernes 9 a 18hs.';
       } else {
         return 'Por favor respondé con *1*, *2* o *3*.';
@@ -104,12 +204,17 @@ async function procesarMensaje(from, texto, tipo, message) {
       return '📎 ¿Querés adjuntar fotos, videos o audios? Si no, respondé *listo*.';
 
     case 'reclamo_activo':
-      if (texto_lower === 'listo' || texto_lower === 'no') {
+      if (t === 'listo' || t === 'no') {
         const nro = Math.floor(Math.random() * 90000) + 10000;
         sesion.datos.numero_reclamo = nro;
+        const { nombre, consorcio, unidad, torre, descripcion } = sesion.datos;
+        const torreStr = torre ? `Torre ${torre} ` : '';
+        console.log(`RECLAMO #${nro} | ${consorcio.nombre} | ${torreStr}${unidad} | ${nombre} | ${descripcion}`);
         sesion.estado = 'menu';
-        console.log(`RECLAMO #${nro} - ${sesion.datos.identificacion}: ${sesion.datos.descripcion}`);
-        return `✅ Reclamo registrado con el número *#${nro}*.\n\n¿Necesitás algo más?\n\n1️⃣ Otro reclamo\n2️⃣ Consultar estado\n3️⃣ Hablar con una persona`;
+        return (
+          `✅ Reclamo registrado con el número *#${nro}*.\n\n` +
+          `¿Necesitás algo más?\n\n1️⃣ Otro reclamo\n2️⃣ Consultar estado\n3️⃣ Hablar con una persona`
+        );
       } else {
         sesion.datos.descripcion += ' ' + texto;
         return '📎 ¿Algo más? Respondé *listo* para registrar.';
@@ -124,13 +229,17 @@ async function procesarMensaje(from, texto, tipo, message) {
   }
 }
 
+// ── Send message ──────────────────────────────────────────────────────────────
+
 async function enviarMensaje(to, texto) {
+  // Convert Argentine mobile format: 5492235814901 → 54223155814901
   let toNormalizado = to;
   if (to.startsWith('549') && to.length === 13) {
     const area = to.slice(3, 6);
     const numero = to.slice(6);
     toNormalizado = '54' + area + '15' + numero;
   }
+
   const url = `https://graph.facebook.com/v25.0/${PHONE_ID}/messages`;
   console.log(`Enviando a ${toNormalizado} via ${url}`);
   const response = await axios.post(
@@ -140,6 +249,8 @@ async function enviarMensaje(to, texto) {
   );
   console.log('Respuesta Meta:', JSON.stringify(response.data));
 }
+
+// ── Start server ──────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Bot corriendo en puerto ${PORT}`));
