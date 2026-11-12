@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Panel de atención</title>
+<style>
+:root {
+  --fondo: #f3f1ec; --panel: #ffffff; --panel-2: #f8f7f3; --linea: #dedad0;
+  --texto: #1d2428; --suave: #667078; --acento: #14535f; --acento-texto: #ffffff; --acento-suave: #dcebed;
+  --entrante: #ffffff; --saliente: #dcebed; --bot: #ecebe5;
+  --alerta: #a2470f; --alerta-suave: #fbe9da; --ok: #2a7a4b; --apagado: #a9afb3; --peligro: #a32b2b;
+  --sombra: 0 1px 2px rgba(20, 30, 35, .08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #12171a; --panel: #1a2125; --panel-2: #20282d; --linea: #2f3a40;
+    --texto: #e8ecee; --suave: #96a2a9; --acento: #5fb8c6; --acento-texto: #082227; --acento-suave: #1d3a40;
+    --entrante: #232c31; --saliente: #1d3a40; --bot: #262e32;
+    --alerta: #f0a56b; --alerta-suave: #3a2a1c; --ok: #5fc48a; --apagado: #55606a; --peligro: #f08a8a;
+    --sombra: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--linea); background: var(--panel); border-radius: 8px; padding: 7px 12px; }
+button:hover { border-color: var(--acento); }
+button:disabled { opacity: .5; cursor: default; }
+button.principal { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); font-weight: 600; }
+button.liso { border-color: transparent; background: transparent; color: var(--suave); }
+button.liso:hover { color: var(--texto); }
+button.riesgo { color: var(--peligro); }
+input, select, textarea { border: 1px solid var(--linea); background: var(--panel); border-radius: 8px; padding: 8px 10px; width: 100%; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
+label { display: block; font-size: 13px; color: var(--suave); margin: 12px 0 4px; }
+[hidden] { display: none !important; }
+
+/* Ingreso */
+#ingreso { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+.tarjeta { background: var(--panel); border: 1px solid var(--linea); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px; box-shadow: var(--sombra); }
+.tarjeta h1 { font-size: 20px; margin: 0 0 2px; }
+.tarjeta p { margin: 0 0 8px; color: var(--suave); font-size: 14px; }
+.tarjeta button.principal { width: 100%; margin-top: 18px; padding: 10px; }
+.error { color: var(--peligro); font-size: 14px; margin-top: 12px; min-height: 1.2em; }
+
+/* Aplicación */
+#app { height: 100%; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+header .marca { font-weight: 700; letter-spacing: -.01em; }
+header nav { display: flex; gap: 4px; }
+header nav button { border-color: transparent; background: transparent; color: var(--suave); }
+header nav button[aria-current="true"] { background: var(--acento-suave); color: var(--texto); font-weight: 600; }
+header .derecha { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.quien { font-size: 14px; }
+.quien small { color: var(--suave); }
+.interruptor { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin: 0; color: var(--texto); }
+.interruptor input { width: 16px; height: 16px; accent-color: var(--acento); }
+
+main { flex: 1; min-height: 0; display: flex; }
+.vista { flex: 1; min-width: 0; min-height: 0; }
+#vistaChats { display: flex; }
+#lista { width: 340px; flex: none; border-right: 1px solid var(--linea); overflow-y: auto; background: var(--panel-2); }
+#detalle { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.equipo { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 12px 4px; }
+.persona { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; background: var(--panel); border: 1px solid var(--linea); border-radius: 999px; padding: 3px 10px; }
+.punto { width: 8px; height: 8px; border-radius: 50%; background: var(--apagado); flex: none; }
+.punto.libre { background: var(--ok); }
+.punto.ocupado { background: var(--alerta); }
+
+.grupo { padding: 14px 14px 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); display: flex; justify-content: space-between; }
+.item { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; border-bottom: 1px solid var(--linea); background: transparent; padding: 10px 14px; }
+.item:hover { background: var(--panel); }
+.item[aria-current="true"] { background: var(--panel); box-shadow: inset 3px 0 0 var(--acento); }
+.item .fila { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.item .nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .hora { font-size: 12px; color: var(--suave); flex: none; }
+.item .lugar { font-size: 13px; color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .avance { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.insignia { display: inline-block; min-width: 20px; text-align: center; font-size: 12px; font-weight: 700; background: var(--acento); color: var(--acento-texto); border-radius: 999px; padding: 0 6px; }
+.etiqueta { font-size: 12px; border-radius: 6px; padding: 1px 7px; background: var(--acento-suave); }
+.etiqueta.espera { background: var(--alerta-suave); color: var(--alerta); }
+.vacio { color: var(--suave); padding: 14px; font-size: 14px; }
+
+.cabecera { padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--linea); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cabecera .datos { min-width: 0; flex: 1 1 220px; }
+.cabecera h2 { font-size: 17px; margin: 0; }
+.cabecera .sub { font-size: 13px; color: var(--suave); }
+.cabecera .acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cabecera select { width: auto; }
+#volver { display: none; }
+.aviso { background: var(--alerta-suave); color: var(--alerta); padding: 8px 16px; font-size: 14px; }
+
+#mensajes { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.msj { max-width: min(560px, 82%); padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: var(--sombra); }
+.msj.in { align-self: flex-start; background: var(--entrante); border: 1px solid var(--linea); border-bottom-left-radius: 4px; }
+.msj.out { align-self: flex-end; background: var(--saliente); border-bottom-right-radius: 4px; }
+.msj.out.bot { background: var(--bot); }
+.msj .pie { font-size: 11px; color: var(--suave); margin-top: 3px; display: flex; gap: 8px; justify-content: flex-end; }
+.msj img, .msj video { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; }
+.msj audio { display: block; max-width: 100%; }
+.msj.sys { align-self: center; background: transparent; box-shadow: none; color: var(--suave); font-size: 12.5px; text-align: center; padding: 2px 8px; max-width: 90%; }
+
+#redactar { display: flex; gap: 8px; padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--linea); align-items: flex-end; }
+#redactar textarea { resize: none; min-height: 42px; max-height: 160px; }
+#bloqueo { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--linea); color: var(--suave); font-size: 14px; }
+.sinSeleccion { margin: auto; color: var(--suave); text-align: center; padding: 24px; }
+
+/* Tablas */
+.hoja { padding: 20px; overflow: auto; height: 100%; }
+.hoja h2 { margin: 0 0 4px; font-size: 19px; }
+.hoja .nota { color: var(--suave); font-size: 14px; margin: 0 0 16px; }
+.tabla { background: var(--panel); border: 1px solid var(--linea); border-radius: 12px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--suave); background: var(--panel-2); }
+tr:last-child td { border-bottom: 0; }
+.acc { display: flex; gap: 6px; }
+.acc button { padding: 4px 9px; font-size: 13px; }
+tr.baja td { color: var(--suave); }
+.barra { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+
+dialog { border: 1px solid var(--linea); border-radius: 14px; background: var(--panel); color: var(--texto); padding: 24px; width: min(400px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(10, 15, 18, .5); }
+dialog h3 { margin: 0 0 4px; font-size: 17px; }
+dialog p { margin: 0; color: var(--suave); font-size: 14px; }
+dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+#tostada { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--texto); color: var(--fondo); padding: 9px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100vw - 32px); z-index: 10; }
+
+@media (max-width: 760px) {
+  #lista { width: 100%; border-right: 0; }
+  #detalle { display: none; }
+  #vistaChats.abierto #lista { display: none; }
+  #vistaChats.abierto #detalle { display: flex; }
+  #volver { display: inline-block; }
+  header { padding: 8px 12px; gap: 8px; }
+  .hoja { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<section id="ingreso" hidden>
+  <form class="tarjeta" id="formIngreso" autocomplete="on">
+    <h1>Panel de atención</h1>
+    <p>Manuel José Lorenzo &amp; Asociados</p>
+    <label for="inUsuario">Usuario</label>
+    <input id="inUsuario" name="usuario" autocomplete="username" autocapitalize="none" required>
+    <label for="inClave">Contraseña</label>
+    <input id="inClave" name="clave" type="password" autocomplete="current-password" required>
+    <button class="principal" type="submit">Ingresar</button>
+    <div class="error" id="errIngreso" role="alert"></div>
+  </form>
+</section>
+
+<section id="cambio" hidden>
+  <div id="ingresoCambio" style="min-height:100vh;display:grid;place-items:center;padding:16px">
+    <form class="tarjeta" id="formCambio">
+      <h1>Elegí tu contraseña</h1>
+      <p>Es la primera vez que entrás o un supervisor la restableció. Poné una que solo vos conozcas.</p>
+      <label for="cbActual">Contraseña actual (la que te pasaron)</label>
+      <input id="cbActual" type="password" autocomplete="current-password" required>
+      <label for="cbNueva">Contraseña nueva (mínimo 8 caracteres)</label>
+      <input id="cbNueva" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="cbRepite">Repetí la contraseña nueva</label>
+      <input id="cbRepite" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="principal" type="submit">Guardar y entrar</button>
+      <div class="error" id="errCambio" role="alert"></div>
+    </form>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <span class="marca">Panel de atención</span>
+    <nav id="pestanas">
+      <button data-vista="chats" aria-current="true">Chats</button>
+      <button data-vista="historial" data-sup hidden>Historial</button>
+      <button data-vista="usuarios" data-sup hidden>Usuarios</button>
+    </nav>
+    <div class="derecha">
+      <label class="interruptor" title="Si está activado, los chats nuevos se te asignan solos mientras tengas el panel abierto">
+        <input type="checkbox" id="disponible"> Recibir chats automáticamente
+      </label>
+      <span class="quien"><b id="yoNombre"></b> <small id="yoRol"></small></span>
+      <button class="liso" id="btnClave">Cambiar contraseña</button>
+      <button class="liso" id="btnSalir">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="vista" id="vistaChats">
+      <aside id="lista" aria-label="Conversaciones"></aside>
+      <section id="detalle"></section>
+    </div>
+    <div class="vista hoja" id="vistaHistorial" hidden></div>
+    <div class="vista hoja" id="vistaUsuarios" hidden></div>
+  </main>
+</div>
+
+<dialog id="dialogo"></dialog>
+<div id="tostada" role="status" hidden></div>
+
+<script>
+'use strict';
+const ZONA = 'America/Argentina/Buenos_Aires';
+const $ = id => document.getElementById(id);
+
+// Crea elementos sin usar HTML: todo texto que viene de WhatsApp se inserta como texto plano
+function el(tag, props, ...hijos) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k in n && typeof v !== 'string') n[k] = v;
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const h of hijos.flat()) if (h !== null && h !== undefined && h !== false) n.append(h);
+  return n;
+}
+
+const estado = { yo: null, convs: [], equipo: [], sel: null, selConv: null, soloLectura: false, ultimoId: 0, vista: 'chats', pendientesVistos: new Set() };
+let relojEstado = null, relojMensajes = null;
+
+async function api(ruta, opciones = {}) {
+  const res = await fetch('/panel/api' + ruta, {
+    method: opciones.method || 'GET',
+    headers: opciones.body ? { 'Content-Type': 'application/json' } : undefined,
+    body: opciones.body ? JSON.stringify(opciones.body) : undefined,
+    credentials: 'same-origin',
+  });
+  let datos = {};
+  try { datos = await res.json(); } catch (e) { /* sin cuerpo */ }
+  if (res.status === 401 && ruta !== '/login') { mostrarIngreso(); throw new Error('Tu sesión terminó. Volvé a ingresar.'); }
+  if (res.status === 403 && datos.codigo === 'cambiar_clave') { mostrarCambio(); throw new Error(datos.error); }
+  if (!res.ok) throw new Error(datos.error || 'No se pudo completar la acción.');
+  return datos;
+}
+
+let relojTostada = null;
+function avisar(texto) {
+  const t = $('tostada');
+  t.textContent = texto; t.hidden = false;
+  clearTimeout(relojTostada);
+  relojTostada = setTimeout(() => { t.hidden = true; }, 5000);
+}
+const intentar = fn => async (...a) => { try { return await fn(...a); } catch (e) { avisar(e.message); } };
+
+// ── Fechas ──
+const fmtHora = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, hour: '2-digit', minute: '2-digit' });
+const fmtDia = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, day: '2-digit', month: '2-digit' });
+const fmtClave = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA });
+function cuando(iso) {
+  const d = new Date(iso);
+  return fmtClave.format(d) === fmtClave.format(new Date()) ? fmtHora.format(d) : `${fmtDia.format(d)} ${fmtHora.format(d)}`;
+}
+function hace(iso) {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 24 ? `hace ${h} h ${min % 60} min` : `hace ${Math.floor(h / 24)} d`;
+}
+function lugar(c) {
+  const torre = c.torre === 'cocheras' ? 'Cocheras' : c.torre ? `Torre ${c.torre}` : '';
+  return [c.consorcio, torre, c.unidad].filter(Boolean).join(' · ');
+}
+
+// ── Pantallas ──
+function pararRelojes() { clearInterval(relojEstado); clearInterval(relojMensajes); relojEstado = relojMensajes = null; }
+function mostrarIngreso() {
+  pararRelojes();
+  $('app').hidden = true; $('cambio').hidden = true; $('ingreso').hidden = false;
+  $('inClave').value = '';
+}
+function mostrarCambio() {
+  pararRelojes();
+  $('app').hidden = true; $('ingreso').hidden = true; $('cambio').hidden = false;
+}
+async function entrar() {
+  await refrescar();
+  $('ingreso').hidden = true; $('cambio').hidden = true; $('app').hidden = false;
+  pararRelojes();
+  relojEstado = setInterval(() => refrescar().catch(() => {}), 4000);
+  relojMensajes = setInterval(() => { if (estado.sel && !estado.soloLectura) cargarMensajes().catch(() => {}); }, 3000);
+}
+
+$('formIngreso').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('errIngreso').textContent = '';
+  try {
+    const r = await api('/login', { method: 'POST', body: { usuario: $('inUsuario').value, clave: $('inClave').value } });
+    if (r.debe_cambiar) { $('cbActual').value = $('inClave').value; mostrarCambio(); }
+    else await entrar();
+  } catch (err) { $('errIngreso').textContent = err.message; }
+});
+
+$('formCambio').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('errCambio').textContent = '';
+  if ($('cbNueva').value !== $('cbRepite').value) { $('errCambio').textContent = 'Las dos contraseñas nuevas no coinciden.'; return; }
+  try {
+    await api('/clave', { method: 'POST', body: { actual: $('cbActual').value, nueva: $('cbNueva').value } });
+    $('formCambio').reset();
+    await entrar();
+  } catch (err) { $('errCambio').textContent = err.message; }
+});
+
+$('btnSalir').addEventListener('click', intentar(async () => {
+  await api('/logout', { method: 'POST' });
+  estado.sel = null; estado.selConv = null;
+  mostrarIngreso();
+}));
+
+$('btnClave').addEventListener('click', intentar(async () => {
+  const v = await pedir('Cambiar contraseña', '', [
+    { id: 'actual', etiqueta: 'Contraseña actual', tipo: 'password' },
+    { id: 'nueva', etiqueta: 'Contraseña nueva (mínimo 8 caracteres)', tipo: 'password' },
+  ], 'Guardar');
+  if (!v) return;
+  await api('/clave', { method: 'POST', body: v });
+  avisar('Contraseña actualizada.');
+}));
+
+$('disponible').addEventListener('change', intentar(async e => {
+  await api('/disponible', { method: 'POST', body: { disponible: e.target.checked } });
+  await refrescar();
+}));
+
+$('pestanas').addEventListener('click', e => {
+  const b = e.target.closest('button[data-vista]');
+  if (b) cambiarVista(b.dataset.vista);
+});
+
+function cambiarVista(v) {
+  estado.vista = v;
+  for (const b of $('pestanas').querySelectorAll('button')) b.setAttribute('aria-current', String(b.dataset.vista === v));
+  $('vistaChats').hidden = v !== 'chats';
+  $('vistaHistorial').hidden = v !== 'historial';
+  $('vistaUsuarios').hidden = v !== 'usuarios';
+  if (v === 'chats' && estado.soloLectura) cerrarDetalle();
+  if (v === 'historial') intentar(cargarHistorial)();
+  if (v === 'usuarios') intentar(cargarUsuarios)();
+}
+
+// ── Lista de chats ──
+async function refrescar() {
+  const d = await api('/estado');
+  estado.yo = d.yo; estado.convs = d.conversaciones; estado.equipo = d.equipo || [];
+  const sup = d.yo.rol === 'supervisor';
+  $('yoNombre').textContent = d.yo.nombre;
+  $('yoRol').textContent = sup ? 'Supervisor' : 'Operador';
+  $('disponible').checked = d.yo.disponible;
+  $('disponible').closest('label').hidden = sup;
+  for (const b of document.querySelectorAll('[data-sup]')) b.hidden = !sup;
+
+  const pendientes = estado.convs.filter(c => c.estado === 'pendiente');
+  const sinLeer = estado.convs.filter(c => c.asignado_a === d.yo.id).reduce((n, c) => n + c.sin_leer, 0);
+  const total = pendientes.length + sinLeer;
+  document.title = (total ? `(${total}) ` : '') + 'Panel de atención';
+
+  if (!estado.soloLectura && estado.sel) {
+    const actual = estado.convs.find(c => c.id === estado.sel);
+    if (!actual) { cerrarDetalle(); avisar('La conversación que tenías abierta se cerró o pasó a otra persona.'); }
+    else { estado.selConv = actual; pintarCabecera(); }
+  }
+  pintarLista();
+}
+
+function pintarLista() {
+  const yo = estado.yo, sup = yo.rol === 'supervisor';
+  const cont = $('lista');
+  const nodos = [];
+
+  if (sup && estado.equipo.length) {
+    nodos.push(el('div', { class: 'equipo' }, estado.equipo.map(p => {
+      const clase = !p.conectado ? '' : (p.rol === 'operador' && !p.disponible) ? 'ocupado' : 'libre';
+      const titulo = !p.conectado ? 'Sin el panel abierto' : clase === 'ocupado' ? 'Conectado, sin recibir chats automáticos' : 'Conectado';
+      return el('span', { class: 'persona', title: titulo },
+        el('span', { class: 'punto ' + clase }), `${p.nombre} · ${p.abiertos}`);
+    })));
+  }
+
+  const grupos = [
+    ['Sin asignar', estado.convs.filter(c => c.estado === 'pendiente')],
+    ['Mis chats', estado.convs.filter(c => c.asignado_a === yo.id)],
+  ];
+  if (sup) grupos.push(['Con otros', estado.convs.filter(c => c.estado === 'en_atencion' && c.asignado_a !== yo.id)]);
+
+  for (const [titulo, convs] of grupos) {
+    nodos.push(el('div', { class: 'grupo' }, el('span', { text: titulo }), el('span', { text: String(convs.length) })));
+    if (!convs.length) nodos.push(el('div', { class: 'vacio', text: titulo === 'Sin asignar' ? 'No hay nadie esperando.' : 'Ninguno.' }));
+    for (const c of convs) nodos.push(itemConv(c));
+  }
+  cont.replaceChildren(...nodos);
+}
+
+function itemConv(c) {
+  const espera = c.estado === 'pendiente';
+  return el('button', { class: 'item', 'aria-current': String(c.id === estado.sel && !estado.soloLectura), onclick: () => abrir(c.id, false) },
+    el('div', { class: 'fila' },
+      el('span', { class: 'nombre', text: c.nombre || c.telefono }),
+      el('span', { class: 'hora', text: cuando(c.ultimo_entrante) })),
+    el('div', { class: 'lugar', text: lugar(c) }),
+    el('div', { class: 'fila' },
+      el('span', { class: 'avance', text: c.ultimo_texto || '' }),
+      espera ? el('span', { class: 'etiqueta espera', text: 'Espera ' + hace(c.creado).replace('hace ', '') })
+        : c.asignado_a === estado.yo.id ? (c.sin_leer ? el('span', { class: 'insignia', text: String(c.sin_leer) }) : null)
+        : el('span', { class: 'etiqueta', text: c.asignado_nombre || '' })));
+}
+
+// ── Conversación ──
+function cerrarDetalle() {
+  estado.sel = null; estado.selConv = null; estado.soloLectura = false; estado.ultimoId = 0;
+  $('vistaChats').classList.remove('abierto');
+  $('detalle').replaceChildren(el('div', { class: 'sinSeleccion', text: 'Elegí una conversación de la lista.' }));
+  if (estado.yo) pintarLista();
+}
+
+async function abrir(id, soloLectura) {
+  estado.sel = id; estado.soloLectura = soloLectura; estado.ultimoId = 0;
+  estado.selConv = soloLectura ? null : estado.convs.find(c => c.id === id) || null;
+  $('vistaChats').hidden = false;
+  $('vistaHistorial').hidden = true;
+  $('vistaChats').classList.add('abierto');
+  $('detalle').replaceChildren(
+    el('div', { class: 'cabecera', id: 'cabecera' }),
+    el('div', { class: 'aviso', id: 'avisoVentana', hidden: true }),
+    el('div', { id: 'mensajes', 'aria-live': 'polite' }),
+    el('div', { id: 'pieDetalle' }));
+  if (!soloLectura) pintarLista();
+  try { await cargarMensajes(); } catch (e) { avisar(e.message); cerrarDetalle(); }
+}
+
+function pintarCabecera() {
+  const c = estado.selConv, cab = $('cabecera');
+  if (!c || !cab) return;
+  const yo = estado.yo, sup = yo.rol === 'supervisor', mio = c.asignado_a === yo.id;
+  const acciones = [];
+  if (!estado.soloLectura) {
+    if (c.estado === 'pendiente') acciones.push(el('button', { class: 'principal', text: 'Tomar chat', onclick: intentar(tomar) }));
+    if (sup) {
+      const sel = el('select', { 'aria-label': 'Asignar a', onchange: intentar(async e => { const v = e.target.value; e.target.value = ''; if (v) await asignar(Number(v)); }) },
+        el('option', { value: '', text: c.asignado_a ? 'Reasignar a…' : 'Asignar a…' }),
+        estado.equipo.filter(p => p.id !== c.asignado_a).map(p =>
+          el('option', { value: String(p.id), text: `${p.nombre}${p.conectado ? '' : ' (sin conexión)'}` })));
+      acciones.push(sel);
+    }
+    if (mio || (sup && c.estado === 'en_atencion')) acciones.push(el('button', { text: 'Resolver', onclick: intentar(resolver) }));
+  }
+  const situacion = c.estado === 'resuelto' ? `Resuelto por ${c.cerrado_por || '—'} · ${cuando(c.cerrado_en)}`
+    : c.estado === 'pendiente' ? `Sin asignar · llegó ${hace(c.creado)}`
+    : `Lo atiende ${mio ? 'vos' : c.asignado_nombre}`;
+  cab.replaceChildren(
+    el('button', { class: 'liso', id: 'volver', text: '← Volver', onclick: () => { const h = estado.soloLectura; cerrarDetalle(); if (h) cambiarVista('historial'); } }),
+    el('div', { class: 'datos' },
+      el('h2', { text: c.nombre || c.telefono }),
+      el('div', { class: 'sub', text: `${lugar(c)} · +${c.telefono}` }),
+      el('div', { class: 'sub', text: situacion })),
+    el('div', { class: 'acciones' }, acciones));
+
+  const aviso = $('avisoVentana');
+  const vencida = c.estado !== 'resuelto' && Date.now() - new Date(c.ultimo_entrante) > 24 * 3600 * 1000;
+  aviso.hidden = !vencida;
+  aviso.textContent = 'Pasaron más de 24 horas desde su último mensaje. WhatsApp no deja escribirle hasta que vuelva a escribir.';
+
+  const pie = $('pieDetalle');
+  const debeRedactar = !estado.soloLectura && mio;
+  if (debeRedactar && !$('redactar')) {
+    const caja = el('textarea', { id: 'texto', rows: 1, placeholder: 'Escribí tu respuesta…', 'aria-label': 'Respuesta', maxLength: 4000 });
+    caja.addEventListener('input', () => { caja.style.height = 'auto'; caja.style.height = Math.min(caja.scrollHeight, 160) + 'px'; });
+    caja.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); responder(); } });
+    pie.replaceChildren(el('form', { id: 'redactar', onsubmit: e => { e.preventDefault(); responder(); } },
+      caja, el('button', { class: 'principal', type: 'submit', id: 'btnEnviar', text: 'Enviar' })));
+    caja.focus();
+  } else if (!debeRedactar) {
+    const texto = estado.soloLectura ? 'Conversación cerrada (solo lectura).'
+      : c.estado === 'pendiente' ? 'Tomá el chat para poder responder. Al tomarlo, el propietario recibe un saludo con tu nombre.'
+      : `Este chat lo atiende ${c.asignado_nombre}. Para responder vos, asignátelo.`;
+    pie.replaceChildren(el('div', { id: 'bloqueo', text: texto }));
+  }
+}
+
+async function cargarMensajes() {
+  const id = estado.sel;
+  if (!id) return;
+  const d = await api(`/conversaciones/${id}/mensajes?desde=${estado.ultimoId}`);
+  if (estado.sel !== id) return;
+  if (estado.soloLectura || !estado.selConv) estado.selConv = d.conversacion;
+  pintarCabecera();
+  const caja = $('mensajes');
+  if (!caja || !d.mensajes.length) return;
+  const abajo = caja.scrollHeight - caja.scrollTop - caja.clientHeight < 80 || estado.ultimoId === 0;
+  for (const m of d.mensajes) { caja.append(burbuja(m)); estado.ultimoId = Math.max(estado.ultimoId, Number(m.id)); }
+  if (abajo) caja.scrollTop = caja.scrollHeight;
+}
+
+function burbuja(m) {
+  if (m.direccion === 'sys') return el('div', { class: 'msj sys', text: `${m.texto} · ${cuando(m.creado)}` });
+  const partes = [];
+  if (m.tiene_media) {
+    const src = `/panel/api/media/${m.id}`;
+    if (m.tipo === 'image') partes.push(el('a', { href: src, target: '_blank', rel: 'noopener' }, el('img', { src, alt: 'Foto enviada por el propietario', loading: 'lazy' })));
+    else if (m.tipo === 'audio') partes.push(el('audio', { src, controls: true, preload: 'none' }));
+    else if (m.tipo === 'video') partes.push(el('video', { src, controls: true, preload: 'none' }));
+    else partes.push(el('a', { href: src, target: '_blank', rel: 'noopener', text: 'Descargar documento' }));
+  }
+  if (m.texto) partes.push(el('div', { text: m.texto }));
+  const esBot = m.direccion === 'out' && m.autor === 'Asistente';
+  partes.push(el('div', { class: 'pie' },
+    m.direccion === 'out' ? el('span', { text: m.autor }) : null,
+    el('span', { text: cuando(m.creado) })));
+  return el('div', { class: `msj ${m.direccion}${esBot ? ' bot' : ''}` }, partes);
+}
+
+async function tomar() { await api(`/conversaciones/${estado.sel}/tomar`, { method: 'POST' }); await refrescar(); await cargarMensajes(); }
+async function asignar(userId) { await api(`/conversaciones/${estado.sel}/asignar`, { method: 'POST', body: { user_id: userId } }); await refrescar(); if (estado.sel) await cargarMensajes(); }
+async function resolver() {
+  const ok = await pedir('Resolver conversación', 'El propietario recibe un mensaje de cierre y vuelve a hablar con el asistente automático.', [], 'Resolver');
+  if (!ok) return;
+  await api(`/conversaciones/${estado.sel}/resolver`, { method: 'POST' });
+  cerrarDetalle();
+  await refrescar();
+}
+async function responder() {
+  const caja = $('texto'), boton = $('btnEnviar');
+  const texto = caja.value.trim();
+  if (!texto || boton.disabled) return;
+  boton.disabled = true;
+  try {
+    await api(`/conversaciones/${estado.sel}/responder`, { method: 'POST', body: { texto } });
+    caja.value = ''; caja.style.height = 'auto';
+    await cargarMensajes();
+  } catch (e) { avisar(e.message); }
+  finally { boton.disabled = false; caja.focus(); }
+}
+
+// ── Historial (supervisores) ──
+async function cargarHistorial() {
+  const d = await api('/historial');
+  const filas = d.conversaciones.map(c => el('tr', {},
+    el('td', { text: cuando(c.cerrado_en) }),
+    el('td', { text: c.nombre || '—' }),
+    el('td', { text: lugar(c) }),
+    el('td', { text: c.asignado_nombre || '—' }),
+    el('td', { text: c.cerrado_por || '—' }),
+    el('td', {}, el('button', { text: 'Ver', onclick: () => abrir(c.id, true) }))));
+  $('vistaHistorial').replaceChildren(
+    el('h2', { text: 'Historial' }),
+    el('p', { class: 'nota', text: 'Últimas 100 conversaciones resueltas.' }),
+    filas.length ? el('div', { class: 'tabla' }, el('table', {},
+      el('thead', {}, el('tr', {}, ['Cerrada', 'Propietario', 'Consorcio y unidad', 'Atendió', 'Cerró', ''].map(t => el('th', { text: t })))),
+      el('tbody', {}, filas)))
+    : el('div', { class: 'vacio', text: 'Todavía no hay conversaciones resueltas.' }));
+}
+
+// ── Usuarios (supervisores) ──
+const ROLES = { operador: 'Operador', supervisor: 'Supervisor' };
+async function cargarUsuarios() {
+  const d = await api('/usuarios');
+  const filas = d.usuarios.map(u => {
+    const yo = u.id === estado.yo.id;
+    return el('tr', { class: u.activo ? '' : 'baja' },
+      el('td', { text: u.nombre + (yo ? ' (vos)' : '') }),
+      el('td', { text: u.usuario }),
+      el('td', { text: ROLES[u.rol] }),
+      el('td', { text: !u.activo ? 'Dado de baja' : u.debe_cambiar ? 'Activo · contraseña provisoria' : 'Activo' }),
+      el('td', {}, el('div', { class: 'acc' },
+        el('button', { text: 'Editar', onclick: intentar(() => editarUsuario(u)) }),
+        el('button', { text: 'Nueva contraseña', onclick: intentar(() => restablecer(u)) }),
+        yo ? null : el('button', { class: u.activo ? 'riesgo' : '', text: u.activo ? 'Dar de baja' : 'Reactivar', onclick: intentar(() => cambiarAlta(u)) }))));
+  });
+  $('vistaUsuarios').replaceChildren(
+    el('div', { class: 'barra' },
+      el('div', {}, el('h2', { text: 'Usuarios' }),
+        el('p', { class: 'nota', style: 'margin:0', text: 'Quien se da de baja no puede entrar más; sus conversaciones quedan en el historial.' })),
+      el('button', { class: 'principal', text: 'Nuevo usuario', onclick: intentar(nuevoUsuario) })),
+    el('div', { class: 'tabla' }, el('table', {},
+      el('thead', {}, el('tr', {}, ['Nombre', 'Usuario', 'Perfil', 'Estado', ''].map(t => el('th', { text: t })))),
+      el('tbody', {}, filas))));
+}
+
+const campoRol = valor => ({ id: 'rol', etiqueta: 'Perfil', opciones: [['operador', 'Operador: atiende chats'], ['supervisor', 'Supervisor: ve todo, asigna y administra usuarios']], valor });
+
+async function nuevoUsuario() {
+  const v = await pedir('Nuevo usuario', 'Pasale la contraseña provisoria; el panel le pide cambiarla la primera vez que entra.', [
+    { id: 'nombre', etiqueta: 'Nombre (el propietario lo ve en el saludo)' },
+    { id: 'usuario', etiqueta: 'Usuario para ingresar (minúsculas, sin espacios)' },
+    campoRol('operador'),
+    { id: 'clave', etiqueta: 'Contraseña provisoria (mínimo 8 caracteres)' },
+  ], 'Crear');
+  if (!v) return;
+  await api('/usuarios', { method: 'POST', body: v });
+  avisar(`Usuario ${v.usuario} creado.`);
+  await cargarUsuarios();
+}
+async function editarUsuario(u) {
+  const v = await pedir(`Editar a ${u.nombre}`, '', [
+    { id: 'nombre', etiqueta: 'Nombre (el propietario lo ve en el saludo)', valor: u.nombre },
+    campoRol(u.rol),
+  ], 'Guardar');
+  if (!v) return;
+  await api(`/usuarios/${u.id}`, { method: 'PATCH', body: v });
+  await cargarUsuarios(); await refrescar();
+}
+async function restablecer(u) {
+  const v = await pedir(`Nueva contraseña para ${u.nombre}`, 'Se cierran sus sesiones abiertas y el panel le pide cambiarla al entrar.', [
+    { id: 'clave', etiqueta: 'Contraseña provisoria (mínimo 8 caracteres)' },
+  ], 'Guardar');
+  if (!v) return;
+  await api(`/usuarios/${u.id}/clave`, { method: 'POST', body: v });
+  avisar('Contraseña provisoria guardada.');
+  await cargarUsuarios();
+}
+async function cambiarAlta(u) {
+  if (u.activo) {
+    const ok = await pedir(`Dar de baja a ${u.nombre}`, 'No va a poder entrar al panel. Los chats que tenga abiertos vuelven a la cola. Se puede reactivar después.', [], 'Dar de baja');
+    if (!ok) return;
+  }
+  await api(`/usuarios/${u.id}`, { method: 'PATCH', body: { activo: !u.activo } });
+  await cargarUsuarios(); await refrescar();
+}
+
+// ── Diálogo genérico: devuelve los valores cargados, o null si se cancela ──
+function pedir(titulo, detalle, campos, textoBoton) {
+  return new Promise(resolver => {
+    const d = $('dialogo');
+    const entradas = campos.map(c => {
+      const control = c.opciones
+        ? el('select', { id: 'dg_' + c.id }, c.opciones.map(([v, t]) => el('option', { value: v, text: t, selected: v === c.valor })))
+        : el('input', { id: 'dg_' + c.id, type: c.tipo || 'text', value: c.valor || '', required: true, autocomplete: 'off' });
+      return [el('label', { for: 'dg_' + c.id, text: c.etiqueta }), control];
+    });
+    const cerrar = valor => { d.close(); resolver(valor); };
+    const form = el('form', { onsubmit: e => {
+      e.preventDefault();
+      const v = {};
+      for (const c of campos) v[c.id] = $('dg_' + c.id).value;
+      cerrar(campos.length ? v : true);
+    } },
+      el('h3', { text: titulo }),
+      detalle ? el('p', { text: detalle }) : null,
+      entradas,
+      el('div', { class: 'botones' },
+        el('button', { type: 'button', text: 'Cancelar', onclick: () => cerrar(null) }),
+        el('button', { class: 'principal', type: 'submit', text: textoBoton })));
+    d.replaceChildren(form);
+    d.oncancel = e => { e.preventDefault(); cerrar(null); };
+    d.showModal();
+  });
+}
+
+// ── Inicio ──
+cerrarDetalle();
+entrar().catch(() => { if ($('cambio').hidden) mostrarIngreso(); });
+</script>
+</body>
+</html>
