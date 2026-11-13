@@ -248,7 +248,14 @@ app.post('/webhook', async (req, res) => {
     }
 
     const reply = await procesarMensaje(from, userText, msgType, message);
-    if (reply) await enviarMensaje(from, reply);
+    // Si WhatsApp rechaza la respuesta, el pedido de hablar con una persona igual llega al panel
+    if (reply) {
+      try {
+        await enviarMensaje(from, reply);
+      } catch (err) {
+        console.error('No se pudo enviar la respuesta:', err.response?.data || err.message);
+      }
+    }
 
     const sesion = sesiones[from];
     if (sesion?.derivar) {
