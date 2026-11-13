@@ -14,10 +14,17 @@ Joaquín administra el proyecto y no es programador. Hasta ahora subió cada cam
 
 - Repositorio: `github.com/joaquinplanalp/chatbot-adm` (rama `main`).
 - Servidor: Render, plan gratuito, Node.js, `https://chatbot-adm.onrender.com`. Se duerme a los 15 minutos sin tráfico.
-- WhatsApp Cloud API: app "CHATBOT ADM" en Meta for Developers, en modo desarrollo con el número de prueba de Meta.
-  El token es permanente (usuario del sistema `chatbot-adm` del portfolio comercial).
+- WhatsApp Cloud API: app "CHATBOT ADM" en Meta for Developers, en modo desarrollo con un número de prueba de Meta.
+  El token es permanente (usuario del sistema `chatbot-adm` del portfolio comercial "Manuel Jose Lorenzo & Asociados").
+  - El número de prueba original dejó de existir en WhatsApp (noviembre 2026). El 13/11/2026 se pidió uno nuevo:
+    **+1 555 141 9741**, Phone Number ID `1469735912892139` (ya cargado en Render). Se le dio a `chatbot-adm`
+    control total sobre su cuenta de WhatsApp (`1408692508012459`).
+  - Ese número nuevo **todavía no aparece en WhatsApp** (el celular ofrece "Invitar"; Meta mostró un error al
+    registrarlo y el Graph API Explorer responde "This API is not supported for this WhatsApp Business Account").
+  - El portfolio también tiene la línea de la administración **+54 9 223 598-8977** (cuenta "Adm Lorenzo"),
+    en estado "No verificado". Esa línea se usa con clientes reales: no conectarla al bot sin planificarlo con Joaquín.
 - Reclamos: Google Sheets, una hoja por consorcio, con cuenta de servicio.
-- Panel: PostgreSQL (pensado para Neon, plan gratuito). **Todavía no está creada la base.**
+- Panel: PostgreSQL en Neon (plan gratuito, proyecto "my-first-project", región AWS US East 2, Ohio).
 
 ## Archivos
 
@@ -35,8 +42,8 @@ Joaquín administra el proyecto y no es programador. Hasta ahora subió cada cam
 |---|---|---|
 | `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN` | Configuradas | WhatsApp Cloud API |
 | `GOOGLE_CREDENTIALS` | Configurada | JSON completo de la cuenta de servicio de Google |
-| `DATABASE_URL` | **Falta** | Connection string de PostgreSQL. Sin ella el bot anda igual y el panel queda desactivado. |
-| `PANEL_INITIAL_PASSWORD` | **Falta** | Contraseña provisoria de los usuarios iniciales (mínimo 8 caracteres). Solo se usa si la tabla de usuarios está vacía. |
+| `DATABASE_URL` | Configurada | Connection string de PostgreSQL (Neon). Sin ella el bot anda igual y el panel queda desactivado. |
+| `PANEL_INITIAL_PASSWORD` | Configurada | Contraseña provisoria de los usuarios iniciales (mínimo 8 caracteres). Solo se usa si la tabla de usuarios está vacía. |
 | `GRAPH_API_BASE` | Solo pruebas | Reemplaza `https://graph.facebook.com/v25.0` para apuntar a la simulación. |
 
 Nunca pongas credenciales en el repositorio ni en este archivo.
@@ -71,19 +78,28 @@ Las sesiones del bot viven en memoria (`sesiones` en `index.js`) y se pierden cu
 - Seguridad: contraseñas con scrypt, sesión por cookie HttpOnly de 12 horas, bloqueo tras 5 intentos fallidos,
   y la pantalla inserta todo texto de WhatsApp como texto plano.
 
-## Estado al 12/11/2026
+## Estado al 13/11/2026
 
-Hecho y probado con WhatsApp real: flujo del bot, validación de consorcios, Google Sheets, consulta de estado, token permanente.
+Hecho y probado con WhatsApp real (con el número de prueba anterior): flujo del bot, validación de consorcios,
+Google Sheets, consulta de estado, token permanente.
 
-Hecho y probado solo en local (base PostgreSQL local y API de WhatsApp simulada): todo el panel y la pausa del bot.
-**No está subido al repositorio ni probado con Meta ni con Neon.**
+Subido a `main` y desplegado en Render con la base de Neon: todo el panel. Joaquín entró como supervisor.
+Se probó con un chat simulado enviado al webhook (número inventado `5490000000001`, ya borrado de la base):
+llega a "Sin asignar", se toma, se escribe y se resuelve. El saludo y las respuestas fallan por ser un número
+inventado, y el panel lo muestra bien.
+
+Arreglo del 13/11: si falla el envío de la respuesta del bot, la derivación al panel se hace igual
+(antes el chat se perdía).
+
+**Falta probar con WhatsApp real**: el número de prueba nuevo todavía no está activo en WhatsApp.
 
 ## Próximos pasos, en orden
 
-1. Comparar estos archivos con lo que hay en `main` (Joaquín pudo haber subido algo a mano) y subir
-   `index.js`, `package.json`, `panel.js` y `panel.html`.
-2. Guiar a Joaquín para crear la base en Neon y cargar `DATABASE_URL` y `PANEL_INITIAL_PASSWORD` en Render.
-3. Probar con WhatsApp real: opción 3, asignación, saludo, respuesta desde el panel, resolver, y `0`.
+1. Ver si el número de prueba nuevo ya está activo (`wa.me/15551419741` desde el celular de Joaquín). Si sigue sin
+   andar, evaluar con Joaquín un chip nuevo para el número definitivo.
+2. Probar con WhatsApp real: opción 3, asignación, saludo, respuesta desde el panel, resolver, y `0`.
+   Revisar el parche del 15 (ver Pendientes): la lista de prueba nueva guardó a Joaquín como `542235814901`, sin 15.
+3. Que Micaela, Belén y Bautista entren al panel y cambien la contraseña provisoria.
 4. Corregir el valor esperado en `pruebas/flujo-panel.js` (ver `pruebas/LEEME.md`).
 
 ## Pendientes conocidos
